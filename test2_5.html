@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的webgl</title>
+</head>
+<body onload="main()">
+  <canvas id="webgl" width="400" height="400">Please use the browser supporting "canvas"</canvas>
+  <script>
+    // 定义初始化环境
+    var makeFailHTML = function(msg) {
+      return '' +
+      '<div style="margin: auto; width:500px;z-index:10000;margin-top:20em;text-align:center;">' + msg + '</div>';
+    }
+    var GET_A_WEBGL_BROWSER = '' +
+      'This page requires a browser that supports WebGL.<br/>' +
+      '<a href="http://get.webgl.org">Click here to upgrade your browser.</a>';
+    var OTHER_PROBLEM = '' +
+      "It doesn't appear your computer can support WebGL.<br/>" +
+      '<a href="http://get.webgl.org">Click here for more information.</a>';
+    var setupWebGL = function(canvas, opt_attribs, opt_onError) {
+      function handleCreationError(msg) {
+        var container = document.getElementsByTagName("body")[0]
+        //var container = canvas.parentNode;
+        if (container) {
+          var str = window.WebGLRenderingContext ?
+              OTHER_PROBLEM :
+              GET_A_WEBGL_BROWSER;
+          if (msg) {
+            str += "<br/><br/>Status: " + msg;
+          }
+          container.innerHTML = makeFailHTML(str)
+        }
+      }
+      opt_onError = opt_onError || handleCreationError
+      if (canvas.addEventListener) {
+        canvas.addEventListener("webglcontextcreationerror", function(event) {
+          opt_onError(event.statusMessage);
+        }, false);
+      }
+      var context = create3DContext(canvas, opt_attribs);
+      if (!context) {
+        if (!window.WebGLRenderingContext) {
+          opt_onError("");
+        } else {
+          opt_onError("");
+        }
+      }
+      return context;
+    }
+    var create3DContext = function(canvas, opt_attribs) {
+      var names = ["webgl", "experimental-webgl", "webkit-3d", "moz-webgl"];
+      var context = null;
+      for (var ii = 0; ii < names.length; ++ii) {
+        try {
+          context = canvas.getContext(names[ii], opt_attribs);
+        } catch(e) {}
+        if (context) {
+          break;
+        }
+      }
+      return context;
+    }
+    function initShaders(gl, vshader, fshader) {
+      var program = createProgram(gl, vshader, fshader);
+      if (!program) {
+        console.log('Failed to create program');
+        return false;
+      }
+      gl.useProgram(program);
+      gl.program = program;
+      return true;
+    }
+    function createProgram(gl, vshader, fshader) {
+      // Create shader object
+      var vertexShader = loadShader(gl, gl.VERTEX_SHADER, vshader);
+      var fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fshader);
+      if (!vertexShader || !fragmentShader) {
+        return null;
+      }
+      // Create a program object
+      var program = gl.createProgram();
+      if (!program) {
+        return null;
+      }
+      // Attach the shader objects
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      // Link the program object
+      gl.linkProgram(program);
+      // Check the result of linking
+      var linked = gl.getProgramParameter(program, gl.LINK_STATUS);
+      if (!linked) {
+        var error = gl.getProgramInfoLog(program);
+        console.log('Failed to link program: ' + error);
+        gl.deleteProgram(program);
+        gl.deleteShader(fragmentShader);
+        gl.deleteShader(vertexShader);
+        return null;
+      }
+      return program;
+    }
+    function loadShader(gl, type, source) {
+      // Create shader object
+      var shader = gl.createShader(type);
+      if (shader == null) {
+        console.log('unable to create shader');
+        return null;
+      }
+      // Set the shader program
+      gl.shaderSource(shader, source);
+      // Compile the shader
+      gl.compileShader(shader);
+      // Check the result of compilation
+      var compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+      if (!compiled) {
+        var error = gl.getShaderInfoLog(shader);
+        console.log('Failed to compile shader: ' + error);
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    }
+    function getWebGLContext (canvas, opt_debug) {
+      gl = setupWebGL(canvas);
+      if (!gl) return null;
+      // 是否dubug
+      if (arguments.length < 2 || opt_debug) {
+        gl = WebGLDebugUtils.makeDebugContext(gl);
+      }
+      return gl;
+    }
+    var VSHADER_SOURCE = 'attribute vec4 a_Position;\n' +
+    'uniform float u_CosB, u_SinB;\n' +
+    'void main() {\n' +
+    'gl_Position.x = a_Position.x * u_CosB - a_Position.y * u_SinB;\n' +
+    'gl_Position.y = a_Position.x * u_SinB + a_Position.y * u_CosB;\n' +
+    'gl_Position.z = a_Position.z;\n' +
+    'gl_Position.w = 1.0;\n' +
+    '}\n'
+    var FSHADER_SOURCE = 'precision mediump float;\n' +
+      'uniform vec4 u_FragColor;\n' +
+      'void main() {\n' +
+      'gl_FragColor = u_FragColor;\n' +
+      '}\n'
+    var ANGLE = 90.0
+    function main () {
+      var canvas = document.getElementById('webgl')
+      var gl = getWebGLContext(canvas)
+      if (!gl) {
+        console.log('Failed to get the context!');
+        return
+      }
+      if (!initShaders(gl, VSHADER_SOURCE, FSHADER_SOURCE)) {
+        console.log('Failed to initialize shader');
+        return
+      }
+      var u_FragColor = gl.getUniformLocation(gl.program, 'u_FragColor')
+      gl.uniform4f(u_FragColor, 1.0, 1.0, 1.0, 1.0)
+      var n = initVertexBuffers(gl)
+      var radian = Math.PI * ANGLE / 180.0
+      var cosB = Math.cos(radian)
+      var sinB = Math.sin(radian)
+      var u_CosB = gl.getUniformLocation(gl.program, 'u_CosB')
+      var u_SinB = gl.getUniformLocation(gl.program, 'u_SinB')
+      gl.uniform1f(u_CosB, cosB)
+      gl.uniform1f(u_SinB, sinB)
+      gl.clearColor(0.0, 0.0, 0.0, 1.0)
+      gl.clear(gl.COLOR_BUFFER_BIT)
+      // gl.drawArrays(gl.TRIANGLE_STRIP, 0, n)
+      gl.drawArrays(gl.TRIANGLES, 0, n)
+      function initVertexBuffers(gl) {
+        var vertices = new Float32Array([-0.5, 0.5, -0.5, -0.5, 0.5, 0.5])
+        var n = 3
+        var vertexBuffer = gl.createBuffer()
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW)
+        var a_Position = gl.getAttribLocation(gl.program, 'a_Position')
+        gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, 0, 0)
+        gl.enableVertexAttribArray(a_Position)
+        return n
+      }
+      // 获取attribute变量的存储位置
+      
+      
+      
+      
+    }
+  </script>
+  <!-- <script src="./cuon-utils.js"></script> -->
+  <!-- <script src="./cuon-matrix.js"></script> -->
+  <script src="./webgl-debug.js"></script>
+  <!-- <script src="./webgl-utils.js"></script> -->
+  <!-- <script src="./HelloCanvas.js"></script> -->
+</body>
+</html>
